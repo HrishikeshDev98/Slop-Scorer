@@ -72,6 +72,65 @@
 .drop-zone p { margin: 4px 0; color: #d1d5db; }
 .drop-hint { font-size: 0.82rem; color: #6b7280; }
 
+/* ── Divider ──────────────────────────────────────── */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 16px;
+  color: #374151;
+  font-size: 0.8rem;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #1f2937;
+}
+.divider span { color: #4b5563; white-space: nowrap; }
+
+/* ── URL input ────────────────────────────────────── */
+.url-input-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+.url-form {
+  display: flex;
+  gap: 8px;
+}
+
+.url-field {
+  flex: 1;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+  padding: 10px 16px;
+  outline: none;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+.url-field::placeholder { color: #4b5563; }
+.url-field:focus { border-color: #a855f7; }
+
+.url-btn {
+  background: #a855f7;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.url-btn:hover:not(:disabled) { background: #9333ea; }
+.url-btn:disabled { opacity: 0.4; cursor: default; }
+
+.url-error { color: #fca5a5; font-size: 0.85rem; margin: 0; }
+
 /* ── Status / error ───────────────────────────────── */
 .status-card {
   display: flex;

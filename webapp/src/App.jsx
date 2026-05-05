@@ -102,6 +102,54 @@ function ResultCard({ result, onDelete }) {
   );
 }
 
+// ── URL input ─────────────────────────────────────────────────────────────────
+
+function UrlInput({ onResult, onLoading }) {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    setError(null);
+    onLoading(true);
+    try {
+      const res = await fetch(`${API}/analyze-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Server error");
+      onResult(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      onLoading(false);
+    }
+  }
+
+  return (
+    <div className="url-input-wrap">
+      <form className="url-form" onSubmit={submit}>
+        <input
+          type="url"
+          className="url-field"
+          placeholder="https://example.com/article"
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          spellCheck={false}
+        />
+        <button type="submit" className="url-btn" disabled={!url.trim()}>
+          Analyze
+        </button>
+      </form>
+      {error && <p className="url-error">{error}</p>}
+    </div>
+  );
+}
+
 // ── History tab ───────────────────────────────────────────────────────────────
 
 const HISTORY_FILTERS = ["all", "clean", "light", "moderate"];
@@ -242,10 +290,14 @@ export default function App() {
             <p className="drop-hint">Multiple files supported · click to browse</p>
           </div>
 
+          <div className="divider"><span>or paste a URL</span></div>
+
+          <UrlInput onResult={r => setResults([r])} onLoading={setLoading} />
+
           {loading && (
             <div className="status-card">
               <div className="spinner" />
-              <span>{progress}</span>
+              <span>{progress || "Analyzing…"}</span>
             </div>
           )}
 

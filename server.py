@@ -1,15 +1,19 @@
-"""Flask backend — multi-file upload, slop-guard analysis, SQLite history."""
+"""Flask backend — multi-file upload, URL analysis, slop-guard, SQLite history."""
 
 import io
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
+import requests
+from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -142,6 +146,76 @@ def analyze():
             results.append({"filename": file.filename, "error": str(exc)})
 
     return jsonify(results)
+
+
+def fetch_article_text(url: str) -> tuple[str, str]:
+    """Fetch a URL and extract article body text. Returns (title, text)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL must start with http:// or https://")
+
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; SlopGuard/1.0)"}
+    resp = requests.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Remove noise
+    for tag in soup(["script", "style", "nav", "header", "footer",
+                     "aside", "form", "noscript", "iframe"]):
+        tag.decompose()
+
+    title = (soup.find("title") or soup.find("h1") or "")
+    title = title.get_text(strip=True) if hasattr(title, "get_text") else str(title)
+
+    # Try common article containers first, fall back to <body>
+    article = (
+        soup.find("article")
+        or soup.find(attrs={"role": "main"})
+        or soup.find(id=re.compile(r"(content|article|main|post)", re.I))
+        or soup.find(class_=re.compile(r"(article|post|content|entry|story)", re.I))
+        or soup.find("main")
+        or soup.find("body")
+    )
+
+    if article is None:
+        raise ValueError("Could not find readable content on this page")
+
+    paragraphs = [p.get_text(" ", strip=True) for p in article.find_all("p") if len(p.get_text(strip=True)) > 40]
+    text = "\n\n".join(paragraphs)
+
+    if len(text.split()) < 20:
+        # Fallback: all visible text from the container
+        text = article.get_text(" ", strip=True)
+
+    return title, text
+
+
+@app.post("/analyze-url")
+def analyze_url():
+    body = request.get_json(silent=True) or {}
+    url = (body.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
+    try:
+        title, text = fetch_article_text(url)
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"error": f"Could not fetch URL: {exc}"}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if not text.strip():
+        return jsonify({"error": "No readable text found at this URL"}), 400
+
+    try:
+        sg = run_slop_guard(text)
+        sg["filename"] = title or url
+        sg["url"] = url
+        save_result(sg["filename"], sg)
+        return jsonify(sg)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.get("/history")
